@@ -1,4 +1,5 @@
 from poliastro.twobody.angles import E_to_nu, F_to_nu, nu_to_E, nu_to_F
+from joblib import Parallel, delayed
 import numpy as np
 from astropy import units as u
 from tqdm import tqdm
@@ -78,7 +79,7 @@ def test_inversion(ecc, delta_t, initial_guess):
         
         if initial_guess == 'paper':
             C = np.exp(1.0) * (ecc + 2 * M) / (ecc * np.exp(1) - 2)
-            guess = np.min([ecc / 2.0 * (C - 1.0 / C) - np.log(C), M / (ecc - 1.0) - np.arcsinh(M / (ecc - 1.0))])
+            guess = np.min([np.log(C), np.arcsinh(M / (ecc - 1.0))])
         else:
             guess = np.arcsinh(M / ecc)
         F = newton(_kepler_equation_hyper, guess, ecc, M, _kepler_equation_prime_hyper, maxiter=100)
@@ -91,7 +92,5 @@ def run_all_tests(eccs, delta_ts, initial_guess):
 
     eccs = eccs.flatten()
     delta_ts = delta_ts.flatten()
-    for i in tqdm(range(len(eccs))):
-        ecc, delta_t = eccs[i], delta_ts[i]
-        num_iters.append(test_inversion(ecc, delta_t, initial_guess))
+    num_iters = Parallel(n_jobs=-1)(delayed(test_inversion)(ecc, delta_t, initial_guess) for ecc, delta_t in zip(eccs, delta_ts))
     return eccs.flatten(), delta_ts.flatten(), np.array(num_iters)
